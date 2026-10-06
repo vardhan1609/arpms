@@ -32,6 +32,7 @@ services:
 
   ingestion-service:
     <<: *py
+    environment: {<<: *env, ARPMS_SERVICE: ingestion-service}
     build: .
     working_dir: /app/services/ingestion
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
@@ -39,17 +40,20 @@ services:
 
   model-service:
     <<: *py
+    environment: {<<: *env, ARPMS_SERVICE: model-service}
     working_dir: /app/services/model
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     volumes: [./data/raw:/raw:ro, artifacts:/artifacts]
 
   document-service:
     <<: *py
+    environment: {<<: *env, ARPMS_SERVICE: document-service}
     working_dir: /app/services/document
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
 
   diagnosis-service:
     <<: *py
+    environment: {<<: *env, ARPMS_SERVICE: diagnosis-service}
     working_dir: /app/services/diagnosis
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
 
@@ -59,6 +63,7 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     environment:
       <<: *env
+      ARPMS_SERVICE: worker
       ARPMS_AUTORUN: ${ARPMS_AUTORUN:-1}
     depends_on:
       postgres: {condition: service_healthy}

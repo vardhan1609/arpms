@@ -92,8 +92,9 @@ def test_diagnosis_and_hitl():
     pf = d["evidence"]["p_fault_present"]
     assert 0.5 < sum(c["posterior_given_fault"] for c in d["candidates"]) <= 1.001
     assert all(c["probability"] <= pf + 1e-6 for c in d["candidates"])
-    assert d["recommendations"] and all(r["status"] == "PENDING" for r in d["recommendations"])
-    rid = d["recommendations"][0]["recommendation_id"]
+    pending = [r for r in d["recommendations"] if r["status"] == "PENDING"]  # earlier decisions are kept on re-diagnosis
+    assert pending
+    rid = pending[0]["recommendation_id"]
     for bad in (dict(decision="REJECT", engineer="e1"), dict(decision="OVERRIDE", engineer="e1", note="n")):
         try:
             dg.api_decide(rid, dg.Decision(**bad))
