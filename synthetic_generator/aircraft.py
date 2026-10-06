@@ -1,7 +1,6 @@
 """Synthetic fleet, LRU installations, flight schedule and fault plan."""
 from datetime import datetime, timedelta
 
-import numpy as np
 
 from .failure_injection import MECHANISMS, SENSOR_KINDS, SENSOR_TARGETS, TRAJECTORIES, sensor_mechanism
 from .flight_profiles import MISSIONS

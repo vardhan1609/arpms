@@ -1,5 +1,4 @@
 """Natural-language snag text with paraphrase / terminology variation."""
-import numpy as np
 
 SYN = {
     "pressure": ["pressure", "press", "pr."], "temperature": ["temperature", "temp"], "hydraulic": ["hydraulic", "hyd"],

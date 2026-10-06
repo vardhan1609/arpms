@@ -2,7 +2,6 @@
 
 Labels come only from maintenance records (confirmed removals) - never from evaluation truth.
 """
-import json
 import os
 import warnings
 

@@ -162,7 +162,7 @@ def api_snag_search(query: str, k: int = 10, subsystem: str | None = None, aircr
 @app.get("/api/v1/snags/repeated")
 def api_repeated(days: int = 90, min_similarity: float = 0.6):
     """Semantically similar snags on the same LRU position within `days` (repeat-defect candidates)."""
-    return q(f"""SELECT a.lru_id, a.snag_id AS first_snag, b.snag_id AS repeat_snag, a.snag_date AS first_date, b.snag_date AS repeat_date,
+    return q("""SELECT a.lru_id, a.snag_id AS first_snag, b.snag_id AS repeat_snag, a.snag_date AS first_date, b.snag_date AS repeat_date,
                         a.snag_title AS first_title, b.snag_title AS repeat_title, a.disposition AS first_disposition,
                         1 - (a.embedding <=> b.embedding) AS similarity
                  FROM snags a JOIN snags b ON a.lru_id = b.lru_id AND a.snag_date < b.snag_date

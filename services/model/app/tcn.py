@@ -1,5 +1,4 @@
 """Temporal convolutional network for RUL with quantile (pinball) outputs."""
-import numpy as np
 import torch
 from torch import nn
 
