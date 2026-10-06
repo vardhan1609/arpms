@@ -1,0 +1,7 @@
+[project]
+name = "arpms-common"
+version = "1.0.0"
+dependencies = ["psycopg[binary]>=3.2", "fastapi>=0.115"]
+
+[tool.setuptools.package-data]
+arpms_common = ["schema.sql"]

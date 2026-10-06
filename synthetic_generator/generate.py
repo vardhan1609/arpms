@@ -128,7 +128,7 @@ def simulate_aircraft(job):
         start_us = to_us(start)
         rec = encode_flight(rng, mapping, meas, start_us, dur, job["idx"] * 10**12 + fl["flight_number"] * 10**7)
         os.makedirs(f"{raw}/bus1553/{ac}", exist_ok=True)
-        ext = "hex" if fl["flight_number"] % 10 == 0 else "bin"
+        ext = "hex" if fl["flight_number"] % 5 == 0 else "bin"
         (write_hex if ext == "hex" else write_bin)(f"{raw}/bus1553/{ac}/{fid}.{ext}", ac, fid, start_us, rec)
         # LRU internal logs: own clock (offset + drift), 1 Hz, gaps / NaNs / duplicates
         os.makedirs(f"{raw}/lru_logs/{ac}", exist_ok=True)
