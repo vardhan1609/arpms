@@ -267,7 +267,10 @@ def train_all(seed=0):
     iid = register("isolation_forest", iforests, {"lru_types": len(iforests)}, training, {"n_estimators": 200, "threshold": "p99 ref"})
     lvl = add_changepoints(flight_level(win, zs, iforests), rem)
     lvl = labels(lvl, fl, rem).reset_index(drop=True)
-    register("bocpd", {"hazard": 1 / 20, "beta0": 0.05}, {}, training, {"hazard": 1 / 20})
+    # flight-level anomaly alert threshold: p99 of LRU-flights not labelled as pre-removal (maintenance labels, not truth)
+    alert_thr = float(np.percentile(lvl.anomaly_score[lvl.label == "NORMAL"], 99))
+    register("bocpd", {"hazard": 1 / 20, "beta0": 0.05, "alert_threshold": alert_thr}, {"anomaly_alert_threshold": alert_thr},
+             training, {"hazard": 1 / 20})
 
     # XGBoost failure-mode classifier, grouped CV by aircraft -> out-of-fold probabilities
     Z = class_matrix(lvl)
@@ -348,7 +351,7 @@ def score_aircraft(aircraft_id):
     fids = fl[fl.aircraft_id == aircraft_id].flight_id.tolist()
     if not fids:
         return {"aircraft_id": aircraft_id, "flights": 0}
-    ids = {t: active(t) for t in ("residual_baseline", "isolation_forest", "xgboost_classifier", "tcn_rul")}
+    ids = {t: active(t) for t in ("residual_baseline", "isolation_forest", "bocpd", "xgboost_classifier", "tcn_rul")}
     if any(v[1] is None for v in ids.values()):
         raise ValueError("models not trained")
     base, iforests, clf, rul = (ids[t][1] for t in ("residual_baseline", "isolation_forest", "xgboost_classifier", "tcn_rul"))
@@ -356,6 +359,8 @@ def score_aircraft(aircraft_id):
     win = load_windows(fids)
     rem = removals()
     lvl = add_changepoints(flight_level(win, residuals(win, base), iforests), rem).reset_index(drop=True)
+    lvl["prev_anomaly"] = lvl.groupby("lru_id").anomaly_score.shift(1).fillna(0)
+    thr = ids["bocpd"][1].get("alert_threshold", 1.5)
     Z = class_matrix(lvl).reindex(columns=clf["columns"])
     probs = []
     for i, (f, l) in enumerate(zip(lvl.flight_id, lvl.lru_id)):
@@ -394,7 +399,7 @@ def score_aircraft(aircraft_id):
         if r.p_fail >= 0.5:
             alert_rows.append((aircraft_id, r.lru_id, r.flight_id, "CRITICAL" if r.p_fail >= 0.8 else "HIGH", "PREDICTED_FAILURE",
                                f"{r.lru_id}: predicted {mode} (p={r.p_fail:.2f})", Jsonb(evidence)))
-        elif r.anomaly_score >= 1.5 and r.cp_prob >= 0.5:
+        elif r.anomaly_score >= thr and (r.cp_prob >= 0.5 or r.prev_anomaly >= thr):
             alert_rows.append((aircraft_id, r.lru_id, r.flight_id, "MEDIUM", "DEGRADATION_ONSET",
                                f"{r.lru_id}: behaviour change detected (anomaly {r.anomaly_score:.1f}, cp {r.cp_prob:.2f})", Jsonb(evidence)))
         if not pd.isna(r.rul_lower) and r.rul_upper < 1.0 and r.p_fail >= 0.3:

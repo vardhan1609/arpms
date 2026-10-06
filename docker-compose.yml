@@ -1,0 +1,86 @@
+# Local deployment. Credentials below are local-development defaults; override via .env for anything shared.
+x-py: &py
+  image: arpms-python:latest
+  restart: unless-stopped
+  depends_on:
+    postgres: {condition: service_healthy}
+  environment: &env
+    DATABASE_URL: postgresql://${POSTGRES_USER:-arpms}:${POSTGRES_PASSWORD:-arpms}@postgres:5432/${POSTGRES_DB:-arpms}
+  volumes:
+    - ./data/raw:/raw:ro          # product services never see ./data/truth
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-arpms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-arpms}
+      POSTGRES_DB: ${POSTGRES_DB:-arpms}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 3s
+      retries: 30
+
+  generator:
+    build: .
+    image: arpms-python:latest
+    profiles: [tools]
+    command: python -m synthetic_generator.generate --seed ${ARPMS_SEED:-42} --scale ${ARPMS_SCALE:-small} --out /data
+    volumes: [./data:/data]
+
+  ingestion-service:
+    <<: *py
+    build: .
+    working_dir: /app/services/ingestion
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    volumes: [./data/raw:/raw]    # rw: uploads add new raw files (never overwrite)
+
+  model-service:
+    <<: *py
+    working_dir: /app/services/model
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    volumes: [./data/raw:/raw:ro, artifacts:/artifacts]
+
+  document-service:
+    <<: *py
+    working_dir: /app/services/document
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  diagnosis-service:
+    <<: *py
+    working_dir: /app/services/diagnosis
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  worker:
+    <<: *py
+    working_dir: /app/services/worker
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    environment:
+      <<: *env
+      ARPMS_AUTORUN: ${ARPMS_AUTORUN:-1}
+    depends_on:
+      postgres: {condition: service_healthy}
+      ingestion-service: {condition: service_started}
+      model-service: {condition: service_started}
+      document-service: {condition: service_started}
+      diagnosis-service: {condition: service_started}
+
+  evaluation:
+    <<: *py
+    profiles: [tools]
+    restart: "no"
+    working_dir: /app
+    command: python -m evaluation.evaluate --truth /data/truth --out /data/evaluation
+    volumes: [./data:/data]       # the only container that mounts private truth
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports: ["${ARPMS_PORT:-8080}:80"]
+    depends_on: [ingestion-service, model-service, document-service, diagnosis-service, worker]
+
+volumes:
+  pgdata:
+  artifacts:
